@@ -208,22 +208,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Qwen Team](https://github.com/QwenLM/Qwen) - For the excellent vision-language models
 - [SiliconFlow](https://siliconflow.cn) - For providing accessible API services
 
-## 📞 Support
 
-If you encounter any issues or have questions:
-
-1. Check the [Issues](https://github.com/yourusername/comfyui-qwen-api-node/issues) page
-2. Create a new issue with detailed information
-3. Join our [Discord Community](your-discord-link) for real-time help
-
-## 🔄 Changelog
-
-### v1.0.0
-- Initial release
-- Support for vision and text modes
-- OpenAI-compatible API integration
-- Comprehensive parameter configuration
-
----
+Powered by claude.ai
 
 ⭐ If this project helps you, please consider giving it a star on GitHub!
