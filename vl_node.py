@@ -14,9 +14,10 @@ class VL_QwenDescribeImage:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
+                # 移除 image 从 required 中
             },
             "optional": {
+                "image": ("IMAGE",),  # 将 image 移到 optional 中
                 "api_url": ("STRING", {
                     "default": "https://api.siliconflow.cn/v1",
                     "multiline": False,
@@ -69,6 +70,15 @@ class VL_QwenDescribeImage:
                     "default": "auto",
                     "tooltip": "图像处理详细程度：auto=自动选择，low=低分辨率快速处理，high=高分辨率详细分析"
                 }),
+                "mode": (["vision", "text"], {
+                    "default": "vision",
+                    "tooltip": "模式选择：vision=视觉分析模式，text=纯文本对话模式"
+                }),
+                "text_model": ("STRING", {
+                    "default": "Qwen/Qwen2.5-72B-Instruct",
+                    "multiline": False,
+                    "tooltip": "纯文本对话使用的大语言模型"
+                }),
             }
         }
     
@@ -77,27 +87,11 @@ class VL_QwenDescribeImage:
     FUNCTION = "describe"
     CATEGORY = "VL Model"
     
-    def describe(self, image, api_url="https://api.siliconflow.cn/v1", model="Qwen/Qwen2.5-VL-72B-Instruct", 
+    def describe(self, image=None, api_url="https://api.siliconflow.cn/v1", model="Qwen/Qwen2.5-VL-72B-Instruct", 
                  prompt="请描述这张图片的内容。", api_key="", timeout=60, max_tokens=1000, 
-                 temperature=0.7, image_quality=95, detail="auto"):
+                 temperature=0.7, image_quality=95, detail="auto", mode="vision", text_model="Qwen/Qwen2.5-72B-Instruct"):
         try:
-            # 处理ComfyUI的图像格式 (batch, height, width, channels)
-            if isinstance(image, torch.Tensor):
-                img_array = image[0].cpu().numpy()
-                img_array = (img_array * 255).astype(np.uint8)
-            else:
-                img_array = image[0] if len(image.shape) == 4 else image
-                img_array = (img_array * 255).astype(np.uint8) if img_array.max() <= 1.0 else img_array.astype(np.uint8)
-            
-            # 转换为PIL Image
-            img = Image.fromarray(img_array)
-            
-            # 将图片编码为base64
-            buffered = BytesIO()
-            img.save(buffered, format="JPEG", quality=image_quality)
-            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-            
-            # 准备OpenAI风格的请求头
+            # 准备请求头
             headers = {
                 "Content-Type": "application/json",
                 "Accept": "application/json"
@@ -105,38 +99,84 @@ class VL_QwenDescribeImage:
             if api_key and api_key.strip():
                 headers["Authorization"] = f"Bearer {api_key.strip()}"
             
-            # 准备OpenAI风格的请求体
-            payload = {
-                "model": model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{img_base64}",
-                                    "detail": detail
+            # 根据模式选择不同的处理方式
+            if mode == "text":
+                # 纯文本对话模式
+                payload = {
+                    "model": text_model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": temperature
+                }
+                
+                # 发送请求到 /chat/completions 端点
+                response = requests.post(
+                    f"{api_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=timeout
+                )
+                
+            else:
+                # 视觉分析模式
+                # 检查是否提供了图片
+                if image is None:
+                    return ("错误：视觉分析模式需要提供图片输入",)
+                
+                # 处理ComfyUI的图像格式 (batch, height, width, channels)
+                if isinstance(image, torch.Tensor):
+                    img_array = image[0].cpu().numpy()
+                    img_array = (img_array * 255).astype(np.uint8)
+                else:
+                    img_array = image[0] if len(image.shape) == 4 else image
+                    img_array = (img_array * 255).astype(np.uint8) if img_array.max() <= 1.0 else img_array.astype(np.uint8)
+                
+                # 转换为PIL Image
+                img = Image.fromarray(img_array)
+                
+                # 将图片编码为base64
+                buffered = BytesIO()
+                img.save(buffered, format="JPEG", quality=image_quality)
+                img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                
+                # 准备OpenAI风格的请求体
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{img_base64}",
+                                        "detail": detail
+                                    }
                                 }
-                            }
-                        ]
-                    }
-                ],
-                "max_tokens": max_tokens,
-                "temperature": temperature
-            }
+                            ]
+                        }
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": temperature
+                }
+                
+                # 发送请求到 /chat/completions 端点
+                response = requests.post(
+                    f"{api_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=timeout
+                )
             
-            # 发送请求到 /chat/completions 端点
-            response = requests.post(
-                f"{api_url.rstrip('/')}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=timeout
-            )
             response.raise_for_status()
             result = response.json()
             
@@ -167,5 +207,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "VL_QwenDescribeImage": "📷 Qwen VL Describe Image (OpenAI API)"
+    "VL_QwenDescribeImage": "🤖 Qwen VL & LLM API (Vision + Text)"
 }
