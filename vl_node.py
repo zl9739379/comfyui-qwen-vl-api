@@ -65,6 +65,10 @@ class VL_QwenDescribeImage:
                     "step": 5,
                     "tooltip": "上传图片的JPEG质量"
                 }),
+                "detail": (["auto", "low", "high"], {
+                    "default": "auto",
+                    "tooltip": "图像处理详细程度：auto=自动选择，low=低分辨率快速处理，high=高分辨率详细分析"
+                }),
             }
         }
     
@@ -75,7 +79,7 @@ class VL_QwenDescribeImage:
     
     def describe(self, image, api_url="https://api.siliconflow.cn/v1", model="Qwen/Qwen2.5-VL-72B-Instruct", 
                  prompt="请描述这张图片的内容。", api_key="", timeout=60, max_tokens=1000, 
-                 temperature=0.7, image_quality=95):
+                 temperature=0.7, image_quality=95, detail="auto"):
         try:
             # 处理ComfyUI的图像格式 (batch, height, width, channels)
             if isinstance(image, torch.Tensor):
@@ -115,7 +119,8 @@ class VL_QwenDescribeImage:
                             {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/jpeg;base64,{img_base64}"
+                                    "url": f"data:image/jpeg;base64,{img_base64}",
+                                    "detail": detail
                                 }
                             }
                         ]
